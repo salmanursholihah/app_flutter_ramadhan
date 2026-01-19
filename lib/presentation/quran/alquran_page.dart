@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:app_flutter_ramadhan/core/components/spaces.dart';
 import 'package:app_flutter_ramadhan/core/constants/colors.dart';
+import 'package:app_flutter_ramadhan/data/datasources/db_local_datasource.dart';
+import 'package:app_flutter_ramadhan/data/models/bookmark_model.dart';
 import 'package:app_flutter_ramadhan/presentation/quran/ayat_page.dart';
 import 'package:quran_flutter/quran_flutter.dart';
 
@@ -14,9 +16,22 @@ class AlQuranPage extends StatefulWidget {
 class _QuranPageState extends State<AlQuranPage> {
   List<Surah> surahs = [];
 
+  BookmarkModel? bookmarkModel;
+
+  void loadData() async {
+    final bookmark = await DbLocalDatasource().getBookmark();
+    if (bookmark != null) {
+      setState(() {
+        bookmarkModel = bookmark;
+      });
+    }
+  }
+
   @override
   void initState() {
     surahs = Quran.getSurahAsList();
+    loadData();
+
     super.initState();
   }
 
@@ -32,74 +47,64 @@ class _QuranPageState extends State<AlQuranPage> {
       body: ListView(
         padding: EdgeInsets.all(16.0),
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Row(
+          bookmarkModel == null
+              ? SizedBox()
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    IconButton(
-                      onPressed: () {},
-                      icon: const Icon(
-                        Icons.book,
-                        color: Colors.white,
-                        size: 24.0,
+                    Expanded(
+                      child: Row(
+                        children: [
+                          IconButton(
+                            onPressed: () {},
+                            icon: const Icon(
+                              Icons.book,
+                              color: Colors.white,
+                              size: 24.0,
+                            ),
+                          ),
+                          SpaceWidth(4.0),
+                          Expanded(
+                            child: Text(
+                              '${bookmarkModel!.suratName} ${bookmarkModel!.suratNumber}:${bookmarkModel!.ayatNumber}',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16.0,
+                                fontWeight: FontWeight.w500,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    SpaceWidth(4.0),
-                    Expanded(
-                      child: Text(
-                        'Al Baqarah 2:33',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16.0,
-                          fontWeight: FontWeight.w500,
-                          overflow: TextOverflow.ellipsis,
+                    GestureDetector(
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AyatPage.ofSurah(
+                              Quran.getSurah(bookmarkModel!.suratNumber),
+                              lastReading: true,
+                              bookmark: bookmarkModel,
+                            ),
+                          ),
+                        );
+                        loadData();
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 16.0),
+                        child: Text(
+                          'Lanjutkan',
+                          style: TextStyle(
+                            color: AppColors.secondary,
+                            fontSize: 16.0,
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              GestureDetector(
-                onTap: () async {
-                  // if (lastRead != null) {
-                  //   Navigator.push(
-                  //     context,
-                  //     MaterialPageRoute(
-                  //       builder: (context) => VersesScreen.ofSurah(
-                  //         Quran.getSurah(lastRead!['surah']!),
-                  //         lastReading: true,
-                  //       ),
-                  //     ),
-                  //   );
-                  // } else {
-                  //   ScaffoldMessenger.of(context).showSnackBar(
-                  //     SnackBar(
-                  //       content: Text(
-                  //         "Belum ada bacaan terakhir",
-                  //         style: TextStyle(
-                  //           color: AppColors.black,
-                  //         ),
-                  //       ),
-                  //       backgroundColor: AppColors.white,
-                  //     ),
-                  //   );
-                  // }
-                },
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 16.0),
-                  child: Text(
-                    'Lanjutkan',
-                    style: TextStyle(
-                      color: AppColors.secondary,
-                      fontSize: 16.0,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
           SpaceHeight(24.0),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -134,7 +139,7 @@ class _QuranPageState extends State<AlQuranPage> {
                     ),
                   );
 
-                  // loadData(); // Memanggil fungsi untuk memuat data terbaru
+                  loadData(); // Memanggil fungsi untuk memuat data terbaru
                 },
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,

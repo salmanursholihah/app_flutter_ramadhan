@@ -1,3 +1,9 @@
+import 'dart:io';
+
+import 'package:alarm/alarm.dart';
+import 'package:alarm/model/alarm_settings.dart';
+import 'package:alarm/model/notification_settings.dart';
+import 'package:alarm/model/volume_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:app_flutter_ramadhan/core/constants/colors.dart';
 import 'package:app_flutter_ramadhan/presentation/home/home_page.dart';
@@ -25,6 +31,31 @@ class _MainPageState extends State<MainPage> {
     setState(() {
       _selectedIndex = index;
     });
+  }
+
+  // final alarmSettings = AlarmSettings(
+  //   id: 42,
+  //   dateTime: DateTime.now().add(const Duration(seconds: 10)),
+  //   assetAudioPath: 'assets/audios/mecca.mp3',
+  //   loopAudio: true,
+  //   vibrate: true,
+  //   warningNotificationOnKill: Platform.isIOS,
+  //   androidFullScreenIntent: true,
+  //   volumeSettings: VolumeSettings.fixed(volume: 0.8, volumeEnforced: true),
+  //   notificationSettings: const NotificationSettings(
+  //     title: 'Adzan Magbrib',
+  //     body: 'Masuk Waktu Adzan Magbrib untuk Kab Sleman',
+  //     stopButton: 'Tutup',
+  //     icon: 'notification_icon',
+  //   ),
+  // );
+
+  @override
+  void initState() {
+    // Alarm.set(alarmSettings: alarmSettings).then((value) {
+    //   print('Alarm set: $value');
+    // });
+    super.initState();
   }
 
   @override

@@ -1,6 +1,12 @@
+import 'package:adhan/adhan.dart';
 import 'package:flutter/material.dart';
 import 'package:app_flutter_ramadhan/core/components/spaces.dart';
 import 'package:app_flutter_ramadhan/core/constants/colors.dart';
+import 'package:app_flutter_ramadhan/core/extensions/build_context_ext.dart';
+import 'package:app_flutter_ramadhan/core/utils/permisson_utils.dart';
+import 'package:app_flutter_ramadhan/data/datasources/db_local_datasource.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:intl/intl.dart';
 
 class SholatPage extends StatefulWidget {
   const SholatPage({super.key});
@@ -10,11 +16,131 @@ class SholatPage extends StatefulWidget {
 }
 
 class _SholatPageState extends State<SholatPage> {
+  var myCoordinates = Coordinates(-7.7421697, 110.3751855);
+  final params = CalculationMethod.singapore.getParameters();
+  String? imsak;
+  String? fajr;
+  String? sunrise;
+  String? dhuhr;
+  String? asr;
+  String? maghrib;
+  String? isha;
+
+  DateTime selectedDate = DateTime.now();
+  String locationNow = 'Kab Sleman, Indonesia';
+
+  @override
+  void initState() {
+    params.madhab = Madhab.shafi;
+    // params.adjustments.fajr = 2;
+    // params.adjustments.sunrise = 2;
+    // params.adjustments.dhuhr = 3;
+    // params.adjustments.asr = 3;
+    // params.adjustments.maghrib = 4;
+    // params.adjustments.isha = 2;
+
+    loadLocation();
+    super.initState();
+  }
+
+  void calculatePrayerTimes(DateTime date) {
+    DateComponents dateComponents = DateComponents(
+      date.year,
+      date.month,
+      date.day,
+    );
+    final prayerTimes = PrayerTimes(myCoordinates, dateComponents, params);
+
+    setState(() {
+      imsak = DateFormat.jm().format(
+        prayerTimes.fajr.subtract(Duration(minutes: 10)),
+      );
+      fajr = DateFormat.jm().format(prayerTimes.fajr);
+      sunrise = DateFormat.jm().format(prayerTimes.sunrise);
+      dhuhr = DateFormat.jm().format(prayerTimes.dhuhr);
+      asr = DateFormat.jm().format(prayerTimes.asr);
+      maghrib = DateFormat.jm().format(prayerTimes.maghrib);
+      isha = DateFormat.jm().format(prayerTimes.isha);
+      selectedDate = date;
+    });
+  }
+
+  void onChangeDate(int days) {
+    DateTime newDate = selectedDate.add(Duration(days: days));
+    calculatePrayerTimes(newDate);
+  }
+
+  refreshLocation() async {
+    await requestLocationPermission();
+    final location = await determinePosition();
+    // String latLng = '${location.latitude},${location.longitude}';
+    myCoordinates = Coordinates(location.latitude, location.longitude);
+    List<Placemark> placemarks = await placemarkFromCoordinates(
+      location.latitude,
+      location.longitude,
+    );
+
+    if (placemarks.isNotEmpty) {
+      Placemark place = placemarks[0];
+      locationNow = "${place.subAdministrativeArea}, ${place.country}";
+      final prayerTimes = PrayerTimes.today(myCoordinates, params);
+
+      imsak = DateFormat.jm().format(
+        prayerTimes.fajr.subtract(Duration(minutes: 10)),
+      );
+      fajr = DateFormat.jm().format(prayerTimes.fajr);
+      sunrise = DateFormat.jm().format(prayerTimes.sunrise);
+      dhuhr = DateFormat.jm().format(prayerTimes.dhuhr);
+      asr = DateFormat.jm().format(prayerTimes.asr);
+      maghrib = DateFormat.jm().format(prayerTimes.maghrib);
+      isha = DateFormat.jm().format(prayerTimes.isha);
+      setState(() {});
+    }
+    await DbLocalDatasource().saveLatLng(location.latitude, location.longitude);
+  }
+
+  loadLocation() async {
+    await requestLocationPermission();
+    final latLng = await DbLocalDatasource().getLatLng();
+    if (latLng.isEmpty) {
+      refreshLocation();
+    } else {
+      double lat = latLng[0];
+      double lng = latLng[1];
+      // myCoordinates = Coordinates(double.parse(lat), double.parse(lng));
+      List<Placemark> placemarks = await placemarkFromCoordinates(lat, lng);
+
+      if (placemarks.isNotEmpty) {
+        myCoordinates = Coordinates(lat, lng);
+        Placemark place = placemarks[0];
+        locationNow = "${place.subAdministrativeArea}, ${place.country}";
+        final prayerTimes = PrayerTimes.today(myCoordinates, params);
+
+        imsak = DateFormat.jm().format(
+          prayerTimes.fajr.subtract(Duration(minutes: 10)),
+        );
+        fajr = DateFormat.jm().format(prayerTimes.fajr);
+        sunrise = DateFormat.jm().format(prayerTimes.sunrise);
+        dhuhr = DateFormat.jm().format(prayerTimes.dhuhr);
+        asr = DateFormat.jm().format(prayerTimes.asr);
+        maghrib = DateFormat.jm().format(prayerTimes.maghrib);
+        isha = DateFormat.jm().format(prayerTimes.isha);
+        setState(() {});
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.primary,
       appBar: AppBar(
+        leading: IconButton(
+          onPressed: () {
+            context.pop(context);
+          },
+          icon: Icon(Icons.arrow_back_ios, color: Colors.white),
+        ),
         title: const Text('Sholat', style: TextStyle(color: Colors.white)),
         backgroundColor: AppColors.primary,
         elevation: 0,
@@ -25,8 +151,13 @@ class _SholatPageState extends State<SholatPage> {
                 context: context,
                 firstDate: DateTime(2000),
                 lastDate: DateTime(2050),
-                // initialDate: selectedDate, // Menggunakan tanggal saat ini
+                initialDate: selectedDate, // Menggunakan tanggal saat ini
               );
+
+              if (pickedDate != null) {
+                selectedDate = pickedDate;
+                calculatePrayerTimes(pickedDate);
+              }
             },
             icon: const Icon(Icons.calendar_month, color: Colors.white),
           ),
@@ -39,7 +170,7 @@ class _SholatPageState extends State<SholatPage> {
             children: [
               Expanded(
                 child: Text(
-                  'Kota Magelang',
+                  locationNow,
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
               ),
@@ -47,7 +178,7 @@ class _SholatPageState extends State<SholatPage> {
               IconButton(
                 onPressed: () {
                   // log("Referesh Location");
-                  // refreshLocation();
+                  refreshLocation();
                 },
                 icon: const Icon(Icons.refresh, color: Colors.white),
               ),
@@ -58,7 +189,9 @@ class _SholatPageState extends State<SholatPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                onPressed: () {},
+                onPressed: () {
+                  onChangeDate(-1);
+                },
                 icon: const Icon(
                   Icons.arrow_back_ios,
                   color: Colors.white,
@@ -66,7 +199,7 @@ class _SholatPageState extends State<SholatPage> {
                 ),
               ),
               Text(
-                'Hari ini, 10 Mar 2025',
+                DateFormat('dd MMMM yyyy').format(selectedDate),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18.0,
@@ -74,7 +207,9 @@ class _SholatPageState extends State<SholatPage> {
                 ),
               ),
               IconButton(
-                onPressed: () {},
+                onPressed: () {
+                  onChangeDate(1);
+                },
                 icon: const Icon(
                   Icons.arrow_forward_ios,
                   color: Colors.white,
@@ -94,7 +229,7 @@ class _SholatPageState extends State<SholatPage> {
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
                 Text(
-                  '03:30',
+                  imsak ?? '-',
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
               ],
@@ -111,7 +246,7 @@ class _SholatPageState extends State<SholatPage> {
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
                 Text(
-                  '04:00',
+                  fajr ?? '-',
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
               ],
@@ -128,7 +263,7 @@ class _SholatPageState extends State<SholatPage> {
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
                 Text(
-                  '06:00',
+                  sunrise ?? '-',
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
               ],
@@ -145,7 +280,7 @@ class _SholatPageState extends State<SholatPage> {
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
                 Text(
-                  '12:00',
+                  dhuhr ?? '-',
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
               ],
@@ -162,7 +297,7 @@ class _SholatPageState extends State<SholatPage> {
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
                 Text(
-                  '15:00',
+                  asr ?? '-',
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
               ],
@@ -179,7 +314,7 @@ class _SholatPageState extends State<SholatPage> {
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
                 Text(
-                  '18:00',
+                  maghrib ?? '-',
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
               ],
@@ -196,7 +331,7 @@ class _SholatPageState extends State<SholatPage> {
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
                 Text(
-                  '19:00',
+                  isha ?? '-',
                   style: TextStyle(color: Colors.white, fontSize: 18.0),
                 ),
               ],

@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:app_flutter_ramadhan/core/constants/colors.dart';
 import 'package:app_flutter_ramadhan/core/extensions/build_context_ext.dart';
+import 'package:app_flutter_ramadhan/data/datasources/db_local_datasource.dart';
+import 'package:app_flutter_ramadhan/data/models/bookmark_model.dart';
 import 'package:app_flutter_ramadhan/presentation/quran/widgets/ayat_widget.dart';
 import 'package:quran_flutter/quran_flutter.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 class AyatPage extends StatefulWidget {
   final Surah? surah;
   final Juz? juz;
   final QuranPage? page;
   final bool lastReading;
+  final BookmarkModel? bookmarkModel;
 
   const AyatPage({
     super.key,
@@ -16,10 +20,15 @@ class AyatPage extends StatefulWidget {
     this.juz,
     this.page,
     this.lastReading = false,
+    this.bookmarkModel,
   });
 
-  factory AyatPage.ofSurah(Surah surah, {bool lastReading = false}) =>
-      AyatPage(surah: surah, lastReading: lastReading);
+  factory AyatPage.ofSurah(
+    Surah surah, {
+    bool lastReading = false,
+    BookmarkModel? bookmark,
+  }) =>
+      AyatPage(surah: surah, lastReading: lastReading, bookmarkModel: bookmark);
 
   @override
   State<AyatPage> createState() => _AyatPageState();
@@ -34,6 +43,19 @@ class _AyatPageState extends State<AyatPage> {
   Map<int, Map<int, Verse>> translatedVerses = {};
   // ItemScrollController itemScrollController = ItemScrollController();
   int lastReadIndex = 0;
+  ItemScrollController itemScrollController = ItemScrollController();
+
+  Future<void> scrollToLastRead() async {
+    // final lastRead = await DBLocalDatasource().getLastRead();
+    lastReadIndex = widget.bookmarkModel != null
+        ? widget.bookmarkModel!.ayatNumber
+        : 0;
+    itemScrollController.scrollTo(
+      duration: Duration(seconds: 2),
+      index: widget.lastReading ? lastReadIndex : 0,
+      curve: Curves.easeInOutCubic,
+    );
+  }
 
   @override
   void initState() {
@@ -43,6 +65,10 @@ class _AyatPageState extends State<AyatPage> {
     translatedVerses = Quran.getQuranVerses(language: translationLanguage);
     surahVersList.add(widget.surah);
     surahVersList.addAll(Quran.getSurahVersesAsList(widget.surah!.number));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      scrollToLastRead();
+    });
     super.initState();
   }
 
@@ -51,7 +77,10 @@ class _AyatPageState extends State<AyatPage> {
     return Scaffold(
       backgroundColor: AppColors.primary,
       appBar: AppBar(
-        title: const Text('Ayat', style: TextStyle(color: Colors.white)),
+        title: Text(
+          'Surah ${surah!.nameEnglish}',
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: AppColors.primary,
         elevation: 0,
         leading: IconButton(
@@ -61,7 +90,8 @@ class _AyatPageState extends State<AyatPage> {
           icon: Icon(Icons.arrow_back_ios, color: Colors.white),
         ),
       ),
-      body: ListView.builder(
+      body: ScrollablePositionedList.builder(
+        itemScrollController: itemScrollController,
         itemBuilder: (context, index) {
           dynamic item = surahVersList[index];
           if (item is Surah) {
@@ -87,7 +117,7 @@ class _AyatPageState extends State<AyatPage> {
                     return AlertDialog(
                       title: Text("Simpan Bacaan Terakhir"),
                       content: Text(
-                        "Apakah Anda ingin menyimpan bacaan terakhir di Surah , Ayat ${item.verseNumber}?",
+                        "Apakah Anda ingin menyimpan bacaan terakhir di Surah ${surah!.nameEnglish} , Ayat ${item.verseNumber}?",
                       ),
                       actions: [
                         TextButton(
@@ -97,13 +127,19 @@ class _AyatPageState extends State<AyatPage> {
                           child: Text("Batal"),
                         ),
                         TextButton(
-                          onPressed: () {
+                          onPressed: () async {
+                            BookmarkModel model = BookmarkModel(
+                              surah!.nameEnglish,
+                              surah!.number,
+                              item.verseNumber,
+                            );
+                            await DbLocalDatasource().saveBookmark(model);
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
                                   "Bacaan terakhir disimpan!",
-                                  style: TextStyle(color: Colors.black),
+                                  style: TextStyle(color: AppColors.primary),
                                 ),
                                 backgroundColor: Colors.white,
                               ),
